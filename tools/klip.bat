@@ -43,11 +43,20 @@ echo Araclar guncelleniyor...
 curl -s -f -o sohbet_klip.py "%REPO%/sohbet_klip.py"
 curl -s -f -o kick_sohbet.py "%REPO%/kick_sohbet.py"
 curl -s -f -o reels.py "%REPO%/reels.py"
+curl -s -f -o kick_canli.py "%REPO%/kick_canli.py"
 if not exist sohbet_klip.py (
     echo HATA: sohbet_klip.py indirilemedi. Internet baglantini kontrol et.
     pause
     exit /b
 )
+
+echo.
+echo   1 = Bitmis yayin (Twitch ya da Kick)
+echo   2 = CANLI MOD (Kick: su an yayindaki kanal, gecmis saatler dahil)
+echo.
+set "SECIM="
+set /p "SECIM=Seciminiz (1 ya da 2): "
+if "%SECIM%"=="2" goto CANLI
 
 echo.
 echo Kayitli yayin linki ya da kanal linki yapistirabilirsin.
@@ -123,6 +132,28 @@ echo [2/3] Sohbet indiriliyor...
 %PY% kick_sohbet.py "%LINK%" -o "%SOHBET%"
 if not exist "%SOHBET%" goto HATA_SOHBET
 goto KES
+
+rem ================= CANLI =================
+:CANLI
+echo.
+set "LINK="
+set /p "LINK=Kick kanal linkini yapistir (orn. https://kick.com/kanal): "
+if not defined LINK (
+    echo Link girmedin.
+    pause
+    exit /b
+)
+echo Kick araclari hazirlaniyor (ilk seferde biraz surer)...
+%PY% -m pip install -q -U "yt-dlp[default,curl-cffi]" curl_cffi
+echo.
+echo Canli mod basliyor. Pencereyi ACIK BIRAK.
+echo Durdurmak icin Ctrl+C (kalanlari tamamlayip durur).
+echo.
+%PY% kick_canli.py "%LINK%" -o klipler
+echo.
+start "" klipler
+pause
+exit /b
 
 rem ================= KES =================
 :KES
