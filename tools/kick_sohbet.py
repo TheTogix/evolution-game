@@ -80,11 +80,39 @@ def emote_temizle(metin):
     return re.sub(r"\[emote:\d+:([^\]]+)\]", r"\1", metin or "").strip()
 
 
+def son_video(link):
+    """Kanal linkinden en son yayin kaydinin linkini yazdirir."""
+    yol = urllib.parse.urlparse(link if "//" in link else "https://" + link).path
+    parcalar = [p for p in yol.split("/") if p]
+    if not parcalar:
+        sys.exit("Linkte kanal adi yok.")
+    kanal = parcalar[0]
+    veri = getir(f"https://kick.com/api/v2/channels/{kanal}/videos")
+    if isinstance(veri, dict):
+        veri = veri.get("data") or veri.get("videos") or []
+    videolar = []
+    for v in veri or []:
+        uuid = (v.get("video") or {}).get("uuid") or v.get("uuid")
+        tarih = v.get("start_time") or v.get("created_at") or ""
+        if uuid:
+            videolar.append((tarih, uuid))
+    if not videolar:
+        sys.exit(f"{kanal} kanalinda kayitli yayin bulunamadi.")
+    videolar.sort(reverse=True)
+    print(f"https://kick.com/{kanal}/videos/{videolar[0][1]}")
+
+
 def main():
     p = argparse.ArgumentParser(description="Kick yayin sohbetini indirir.")
     p.add_argument("link", help="Kick video linki")
     p.add_argument("-o", "--cikti", default="chat.json")
+    p.add_argument("--son-video", action="store_true",
+                   help="Kanal linkinden en son yayin linkini yazdir")
     a = p.parse_args()
+
+    if a.son_video:
+        son_video(a.link)
+        return
 
     uuid = uuid_bul(a.link)
     print("Video bilgisi aliniyor...")

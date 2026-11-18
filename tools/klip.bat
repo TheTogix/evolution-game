@@ -11,16 +11,21 @@ echo    KLIP MAKINESI  (Twitch + Kick)
 echo ============================================
 echo.
 
-rem ---------- Python ----------
-where python >nul 2>&1
-if errorlevel 1 (
-    echo Python kuruluyor...
-    winget install -e --id Python.Python.3.12 --accept-source-agreements --accept-package-agreements
+rem ---------- Python (Store yonlendirmesini atla, gercek Python'u bul) ----------
+call :PYBUL
+if not defined PY (
+    echo Python kuruluyor, biraz bekle...
+    winget install -e --id Python.Python.3.12 --scope user --accept-source-agreements --accept-package-agreements
+    call :PYBUL
+)
+if not defined PY (
     echo.
-    echo Python kuruldu. Bu pencereyi KAPAT ve klip.bat'i TEKRAR AC.
+    echo HATA: Python kurulamadi. Bu pencereyi kapat, klip.bat'i tekrar ac.
+    echo Yine olmazsa bu pencerenin ekran goruntusunu at.
     pause
     exit /b
 )
+echo Python: %PY%
 
 rem ---------- ffmpeg ----------
 where ffmpeg >nul 2>&1
@@ -45,8 +50,10 @@ if not exist sohbet_klip.py (
 )
 
 echo.
+echo Kayitli yayin linki ya da kanal linki yapistirabilirsin.
+echo Kanal linki verirsen o kanalin EN SON yayini kullanilir.
 set "LINK="
-set /p "LINK=Yayin linkini yapistir (sag tik) ve Enter'a bas: "
+set /p "LINK=Linki yapistir (sag tik) ve Enter'a bas: "
 if not defined LINK (
     echo Link girmedin.
     pause
@@ -66,6 +73,15 @@ exit /b
 
 rem ================= TWITCH =================
 :TWITCH
+echo "%LINK%" | findstr /i "/videos/" >nul
+if errorlevel 1 (
+    echo.
+    echo Bu bir KANAL linki. Twitch'te kanalin "Videolar" sekmesinden
+    echo bir yayin ac ve onun linkini yapistir.
+    echo Ornek: https://www.twitch.tv/videos/2345678901
+    pause
+    exit /b
+)
 if not exist TwitchDownloaderCLI.exe (
     echo TwitchDownloaderCLI indiriliyor...
     powershell -nop -c "$r=Invoke-RestMethod https://api.github.com/repos/lay295/TwitchDownloader/releases/latest; $a=$r.assets | ? { $_.name -match 'CLI.*Windows-x64\.zip' } | select -First 1; Invoke-WebRequest $a.browser_download_url -OutFile tdcli.zip; Expand-Archive tdcli.zip -DestinationPath tdcli -Force; Copy-Item (Get-ChildItem tdcli -Recurse -Filter TwitchDownloaderCLI.exe | select -First 1).FullName .; Remove-Item tdcli,tdcli.zip -Recurse -Force"
@@ -87,15 +103,24 @@ goto KES
 
 rem ================= KICK =================
 :KICK
-echo Kick araclari hazirlaniyor...
-python -m pip install -q -U "yt-dlp[default,curl-cffi]" curl_cffi
+echo Kick araclari hazirlaniyor (ilk seferde biraz surer)...
+%PY% -m pip install -q -U "yt-dlp[default,curl-cffi]" curl_cffi
+echo "%LINK%" | findstr /i "/videos/" >nul
+if errorlevel 1 (
+    echo Kanalin en son yayini araniyor...
+    set "BULUNAN="
+    for /f "delims=" %%L in ('call %PY% kick_sohbet.py "%LINK%" --son-video') do set "BULUNAN=%%L"
+    call :SONLINK
+    if not defined LINK2 goto HATA_KANAL
+)
+echo Yayin: %LINK%
 echo.
 echo [1/3] Yayin indiriliyor (uzun surebilir, pencereyi kapatma)...
-python -m yt_dlp --impersonate chrome -f "bv*+ba/b" --merge-output-format mp4 -o "%VIDEO%" "%LINK%"
+%PY% -m yt_dlp --impersonate chrome -f "bv*+ba/b" --merge-output-format mp4 -o "%VIDEO%" "%LINK%"
 if not exist "%VIDEO%" goto HATA_VIDEO
 echo.
 echo [2/3] Sohbet indiriliyor...
-python kick_sohbet.py "%LINK%" -o "%SOHBET%"
+%PY% kick_sohbet.py "%LINK%" -o "%SOHBET%"
 if not exist "%SOHBET%" goto HATA_SOHBET
 goto KES
 
@@ -103,7 +128,7 @@ rem ================= KES =================
 :KES
 echo.
 echo [3/3] Klipler kesiliyor...
-python sohbet_klip.py "%VIDEO%" "%SOHBET%" -o "%CIKTI%"
+%PY% sohbet_klip.py "%VIDEO%" "%SOHBET%" -o "%CIKTI%"
 if errorlevel 1 (
     echo HATA: Klipler kesilemedi. Bu pencerenin ekran goruntusunu at.
     pause
@@ -114,6 +139,32 @@ echo ============================================
 echo  BITTI! Klipler: %CIKTI%
 echo ============================================
 start "" "%CIKTI%"
+pause
+exit /b
+
+rem ================= YARDIMCILAR =================
+:PYBUL
+set "PY="
+py -3 -c "import sys" >nul 2>&1 && (set "PY=py -3" & exit /b)
+python -c "import sys" >nul 2>&1 && (set "PY=python" & exit /b)
+for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do if exist "%%~fD\python.exe" set "PY="%%~fD\python.exe""
+if defined PY exit /b
+for /d %%D in ("%ProgramFiles%\Python3*") do if exist "%%~fD\python.exe" set "PY="%%~fD\python.exe""
+exit /b
+
+:SONLINK
+set "LINK2="
+if defined BULUNAN (
+    set "LINK=%BULUNAN%"
+    set "LINK2=1"
+)
+exit /b
+
+:HATA_KANAL
+echo.
+echo Kanalin son yayini bulunamadi. Kick'te kanalin "Videolar" sekmesinden
+echo bir yayin ac ve onun linkini yapistir.
+echo Ornek: https://kick.com/rraenee/videos/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 pause
 exit /b
 
