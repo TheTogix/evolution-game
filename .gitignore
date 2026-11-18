@@ -25,3 +25,4 @@ dist-ssr
 
 # Reels ciktilari
 reels*.mp4
+__pycache__/
